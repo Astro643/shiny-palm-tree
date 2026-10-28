@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Security console</title>
+<style>
+:root{--bg:#fff;--panel:#FBFBFC;--line:#E5E5EB;--ink:#111113;--mute:#666672;--red:#D7142A}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+body.panic::before{content:"";position:fixed;inset:0 0 auto;height:3px;background:var(--red);z-index:5}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+h1,h2{font-size:15px;font-weight:650;letter-spacing:-.01em}
+.app{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);height:100dvh}
+.pane{display:flex;flex-direction:column;min-height:0}
+.left{border-right:1px solid var(--line)}
+.right{background:var(--panel);overflow:auto}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-bottom:1px solid var(--line);background:inherit;position:sticky;top:0;z-index:2}
+.sub,.rd{color:var(--mute);font-size:13px}
+.ghost{border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 12px}
+.ghost:hover{border-color:#C9C9D1}
+/* chat */
+#log{flex:1;overflow:auto;padding:20px;display:flex;flex-direction:column;gap:10px}
+.msg{max-width:84%;padding:9px 13px;border-radius:12px;white-space:pre-wrap;overflow-wrap:anywhere}
+.me{align-self:flex-end;background:var(--ink);color:#fff;border-bottom-right-radius:4px}
+.sys{align-self:flex-start;background:var(--panel);border:1px solid var(--line);border-bottom-left-radius:4px}
+.sys.ok{background:#E8F6EF;border-color:#BFE5D1;color:#065F3A}
+.sys.warn{background:#FFF4E0;border-color:#F2D9A8;color:#7A4700}
+.sys.bad{background:#FDECEE;border-color:#F5BDC3;color:#9E0D1C}
+.spin{display:inline-block;width:11px;height:11px;margin-right:8px;border:2px solid var(--line);border-top-color:var(--ink);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-1px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.comp{padding:10px 20px 18px;border-top:1px solid var(--line)}
+.pills{display:flex;gap:8px;overflow-x:auto;padding:6px 2px 12px;scrollbar-width:none;min-height:46px;align-items:center}
+.pills::-webkit-scrollbar{display:none}
+.pill{flex:none;border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 14px;font-weight:500;box-shadow:0 4px 14px rgba(17,17,19,.08)}
+.pill:hover{border-color:#C0C0CA;box-shadow:0 6px 18px rgba(17,17,19,.12)}
+.in{display:flex;gap:8px}
+.in input{flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;padding:11px 14px;background:#fff}
+.in input:focus{border-color:var(--ink)}
+.send,.btn{border:0;background:var(--ink);color:#fff;border-radius:10px;padding:0 18px;font-weight:600}
+/* status */
+.body{padding:8px 20px 28px}
+.note{margin:12px 0 0;padding:10px 14px;border:1px solid #F2D9A8;background:#FFF4E0;color:#7A4700;border-radius:10px}
+.panic{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:16px 0 4px;padding:18px 20px;border:1px solid var(--line);border-radius:14px;background:#fff}
+.pt{font-size:17px;font-weight:700;letter-spacing:-.015em}
+.panic .btn{padding:8px 16px;background:#fff;color:var(--red);border:1px solid #F0B4BB;flex:none}
+.panic.on{background:var(--red);border-color:var(--red);color:#fff;animation:pulse 1.4s ease-out infinite}
+.panic.on .rd{color:#fff}
+.panic.on .btn{border-color:#fff}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(215,20,42,.55)}70%{box-shadow:0 0 0 16px rgba(215,20,42,0)}100%{box-shadow:0 0 0 0 rgba(215,20,42,0)}}
+.sec{padding:16px 0;border-bottom:1px solid var(--line)}
+.sec:last-child{border:0}
+.rh{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.rt{font-weight:600}
+.ctl{display:flex;align-items:center;gap:10px}
+.badge{display:inline-flex;align-items:center;gap:6px;border:1px solid;border-radius:999px;padding:1px 10px;font-size:12px;font-weight:600}
+.badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.badge.ok{color:#065F3A;background:#E8F6EF;border-color:#BFE5D1}
+.badge.off{color:#5A5A66;background:#F1F1F4;border-color:var(--line)}
+.badge.bad{color:#9E0D1C;background:#FDECEE;border-color:#F5BDC3}
+.sw{width:34px;height:20px;border:0;border-radius:999px;background:#D4D4DC;position:relative;flex:none}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
+.sw.on{background:var(--ink)}
+.sw.on::after{transform:translateX(14px)}
+.seg{display:flex;margin-top:10px;padding:2px;border:1px solid var(--line);border-radius:9px;background:#fff}
+.seg button{flex:1;border:0;background:none;border-radius:7px;padding:6px 8px;color:var(--mute)}
+.seg button.on{background:var(--ink);color:#fff}
+.subs{margin-top:6px}
+.subs.dim{opacity:.55}
+.subrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0}
+.big{font-size:30px;font-weight:700;letter-spacing:-.03em;line-height:1}
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px}
+.kv dt{color:var(--mute);font-size:13px}
+.kv dd{font-weight:550;overflow-wrap:anywhere}
+.kv dd.mute{color:var(--mute);font-weight:400}
+/* sign-in */
+.gate{position:fixed;inset:0;z-index:9;display:none;place-items:center;background:rgba(255,255,255,.93);backdrop-filter:blur(6px)}
+.gate.show{display:grid}
+.card{width:min(380px,92vw);padding:28px;border:1px solid var(--line);border-radius:14px;background:#fff;box-shadow:0 12px 40px rgba(17,17,19,.08)}
+.card h2{font-size:18px;margin-bottom:4px}
+.card label{display:block;margin-top:14px;font-weight:550}
+.card input{width:100%;margin-top:5px;padding:10px 12px;border:1px solid var(--line);border-radius:9px}
+.card .btn{width:100%;margin-top:18px;padding:11px}
+#ge{color:#9E0D1C;margin-top:10px;min-height:20px}
+@media(max-width:860px){.app{display:block;height:auto}.left{height:100dvh;border-right:0;border-bottom:1px solid var(--line)}.right{overflow:visible}.msg{max-width:92%}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <main class="pane left">
+    <header class="bar">
+      <div><h1>Security console</h1><p class="sub" id="gid">Connecting…</p></div>
+      <button class="ghost" id="out">Sign out</button>
+    </header>
+    <div id="log" aria-live="polite"></div>
+    <div class="comp">
+      <div class="pills" id="pills"></div>
+      <div class="in">
+        <input id="inp" maxlength="500" autocomplete="off" aria-label="Command for the security worker" placeholder="Tell the worker what to change, e.g. “Lock joins for 10 minutes”">
+        <button class="send" id="send">Send</button>
+      </div>
+    </div>
+  </main>
+  <aside class="pane right">
+    <header class="bar">
+      <div><h2>Server status</h2><p class="sub" id="sync">Waiting for data…</p></div>
+      <span class="badge off" id="live">Offline</span>
+    </header>
+    <div class="body" id="st"></div>
+  </aside>
+</div>
+
+<div class="gate" id="gate">
+  <form class="card" id="gf">
+    <h2>Sign in to your server</h2>
+    <p class="sub">Enter your Discord server ID and the dashboard password.</p>
+    <label for="g">Server ID</label><input id="g" inputmode="numeric" autocomplete="off" required>
+    <label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" required>
+    <p id="ge" role="alert"></p>
+    <button class="btn" type="submit">Open dashboard</button>
+  </form>
+</div>
+
+<script>
+const $=s=>document.querySelector(s),log=$('#log'),inp=$('#inp');
+const esc=s=>(s&&typeof s==='object'?JSON.stringify(s):String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let sg=[],prev=null,ready=false;
+
+async function api(p,o){
+  const r=await fetch(p,o?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o)}:{});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok)throw Object.assign(new Error(d.detail&&d.detail.map?'Check your input.':d.detail||r.statusText),{status:r.status});
+  return d;
+}
+const add=(c,h)=>{const m=document.createElement('div');m.className='msg '+c;m.innerHTML=h;log.append(m);log.scrollTop=log.scrollHeight;return m};
+const setState=(m,c,h)=>{m.className='msg sys '+c;m.innerHTML=h;log.scrollTop=log.scrollHeight};
+
+/* ---- config diff: surfaces worker-side changes in the chat ---- */
+const flat=(o,p='',out={})=>{for(const k in o){const v=o[k];v&&typeof v==='object'&&!Array.isArray(v)?flat(v,p+k+'.',out):out[p+k]=Array.isArray(v)?v.length+' items':v}return out};
+function diff(a,b){
+  const ks=[...new Set([...Object.keys(a),...Object.keys(b)])].filter(k=>a[k]!==b[k]);
+  if(ks.length)add('sys','<b>Configuration changed</b>\n'+ks.slice(0,6).map(k=>`${esc(k)}: ${esc(a[k]??'unset')} → ${esc(b[k]??'unset')}`).join('\n')+(ks.length>6?`\n…and ${ks.length-6} more`:''));
+}
+
+/* ---- status panel ---- */
+const badge=(t,k)=>`<span class="badge ${k}">${t}</span>`;
+const sw=(on,label,pOn,pOff)=>`<button class="sw ${on?'on':''}" role="switch" aria-checked="${!!on}" aria-label="${label}" data-prompt="${esc(on?pOff:pOn)}"></button>`;
+const kv=(k,v)=>`<div><dt>${k}</dt><dd class="${v?'':'mute'}">${v?esc(v):'Not set'}</dd></div>`;
+
+function render(c,ex){
+  const j=c.joingate||{},n=c.antinuke||{},a=c.automod||{},on=!!(c.panic||{}).active;
+  document.body.classList.toggle('panic',on);
+  const mode=j.pause_invites?1:j.verification?2:0;
+  const modes=[['Lenient','Set JoinGate to lenient mode: no verification and invites open'],['Captcha','Set JoinGate to captcha verification mode'],['Hard lockdown','Set JoinGate to hard lockdown: pause invites and block new joins']];
+  const nuke=[n.channel_delete!=null&&`${n.channel_delete} channel deletes`,n.channel_create!=null&&`${n.channel_create} channel creates`,n.role_delete!=null&&`${n.role_delete} role deletes`,n.role_edit!=null&&`${n.role_edit} role edits`,n.ban!=null&&`${n.ban} bans`,n.kick!=null&&`${n.kick} kicks`].filter(Boolean);
+  const am=[
+    ['Spam filter',a.spam_msgs>0,a.spam_msgs>0?`${a.spam_msgs} messages per ${a.spam_window||'?'}s`:'No limit set','Enable the AutoMod spam filter','Disable the AutoMod spam filter'],
+    ['Link filter',!!a.block_links,(a.block_links?'Links blocked':'Links allowed')+(a.block_invites?', invites blocked':''),'Enable AutoMod link blocking','Disable AutoMod link blocking'],
+    ['Mass mentions',a.mass_mentions>0,a.mass_mentions>0?`Limit of ${a.mass_mentions} mentions per message`:'No limit set','Enable the AutoMod mass-mention filter','Disable the AutoMod mass-mention filter']];
+  $('#st').innerHTML=`
+${ex?'':'<div class="note">No configuration found for this server yet. Ask the worker to set up protections from the console.</div>'}
+<section class="panic ${on?'on':''}">
+  <div><div class="pt">${on?'Panic mode active':'Panic mode off'}</div><div class="rd">${on?'The server is frozen. Joins and risky actions are blocked.':'Emergency freeze is on standby.'}</div></div>
+  <button class="btn" data-prompt="${on?'Lift panic mode and restore normal operation':'Activate panic mode now and freeze the server'}" ${on?'':'data-confirm="Freeze the whole server?"'}>${on?'Lift panic mode':'Trigger panic'}</button>
+</section>
+<section class="sec">
+  <div class="rh"><div class="rt">Anti-raid</div><div class="ctl">${badge(j.enabled?'Enabled':'Disabled',j.enabled?'ok':'bad')}${sw(j.enabled,'Anti-raid','Enable anti-raid protection (JoinGate)','Disable anti-raid protection (JoinGate)')}</div></div>
+  <div class="rd">${j.max_joins&&j.window?`Heat velocity limit: ${j.max_joins} joins per ${j.window}s`:'No heat velocity limit set'}</div>
+  ${j.min_account_age_days>0?`<div class="rd">Accounts younger than ${j.min_account_age_days} days are flagged</div>`:''}
+  ${j.block_default_avatar?'<div class="rd">Default avatars are blocked</div>':''}
+</section>
+<section class="sec">
+  <div class="rt">JoinGate mode</div>
+  <div class="seg">${modes.map((m,i)=>`<button class="${i===mode?'on':''}" aria-pressed="${i===mode}" data-prompt="${esc(m[1])}">${m[0]}</button>`).join('')}</div>
+</section>
+<section class="sec">
+  <div class="rh"><div class="rt">Anti-nuke</div><div class="ctl">${badge(n.enabled?'Watchdog active':'Bypassed',n.enabled?'ok':'bad')}${sw(n.enabled,'Anti-nuke watchdog','Enable the anti-nuke watchdog','Bypass the anti-nuke watchdog')}</div></div>
+  <div class="rd">${nuke.length?`Limits per ${n.window||'?'}s: ${nuke.join(', ')}`:'No limits set'}</div>
+  ${n.block_bot_add?'<div class="rd">New bot additions are blocked</div>':''}
+</section>
+<section class="sec">
+  <div class="rh"><div class="rt">AutoMod</div><div class="ctl">${badge(a.enabled?'Enabled':'Disabled',a.enabled?'ok':'off')}${sw(a.enabled,'AutoMod','Enable AutoMod','Disable AutoMod')}</div></div>
+  <div class="subs ${a.enabled?'':'dim'}">${am.map(r=>`<div class="subrow"><div><div>${r[0]}</div><div class="rd">${esc(r[2])}</div></div>${sw(r[1],r[0],r[3],r[4])}</div>`).join('')}</div>
+</section>
+<section class="sec">
+  <div class="rh"><div><div class="rt">Core whitelist</div><div class="rd">${c.whitelist?'Identities exempt from every protection':'Empty: nobody is exempt yet'}</div></div><div class="big">${+c.whitelist||0}</div></div>
+</section>
+<section class="sec"><dl class="kv">${kv('Log channel',c.log_channel_id)}${kv('Quarantine role',c.quarantine_role_id)}${kv('Verify channel',c.verify_channel_id)}${kv('Punishment',c.punishment)}</dl></section>`;
+  $('#pills').innerHTML=sg.map((x,i)=>`<button class="pill" data-i="${i}">${esc(x.label)}</button>`).join('')||'<span class="rd">No open vulnerabilities found.</span>';
+}
+
+async function refresh(){
+  try{
+    const d=await api('/api/config');
+    $('#gate').classList.remove('show');
+    $('#gid').textContent='Server '+d.guild_id;
+    if(!ready){ready=true;add('sys',`Connected to server ${d.guild_id}. Describe a protection change and the worker will apply it.`)}
+    const f=flat(d.config);if(prev)diff(prev,f);prev=f;
+    sg=d.suggestions;render(d.config,d.exists);
+    $('#live').className='badge ok';$('#live').textContent='Live';
+    $('#sync').textContent='Updated '+new Date().toLocaleTimeString();
+  }catch(e){
+    $('#live').className='badge off';$('#live').textContent='Offline';
+    if(e.status===401)showGate();else $('#sync').textContent=e.message;
+  }
+}
+const showGate=()=>{$('#gate').classList.add('show');$('#g').focus()};
+
+/* ---- send a command and follow it until the worker finishes ---- */
+const RESULT={
+  executed:['ok','Done. The worker applied your change.'],
+  blocked_by_traffic:['warn','Held back: the worker is handling too much traffic. Try again in a moment.'],
+  failed_sensibility:['warn','The worker declined this request because it was not a safe or sensible change.'],
+  failed:['bad','The worker could not complete this request.']};
+async function send(text){
+  add('me',esc(text));
+  const m=add('sys','<i class="spin"></i>Waiting for the worker…');
+  try{
+    const {command_id}=await api('/api/command',{prompt:text});
+    for(let i=0;i<12;i++){            // each call long-polls for ~15s
+      const s=await api('/api/status/'+command_id);
+      if(s.status==='processing')continue;
+      const [k,t]=RESULT[s.status]||RESULT.failed;
+      setState(m,k,t+(s.error?'\n'+esc(s.error):''));
+      return refresh();
+    }
+    setState(m,'warn','Still processing. The worker may be busy; the status panel will update when it finishes.');
+  }catch(e){
+    if(e.status===401)return showGate();
+    setState(m,'bad',esc(e.message));
+  }
+}
+const submit=()=>{const t=inp.value.trim();if(!t)return;inp.value='';send(t)};
+const go=t=>{inp.value=t;submit()};   // pills: fill the field, then submit
+
+$('#send').onclick=submit;
+inp.onkeydown=e=>{if(e.key==='Enter'&&!e.isComposing)submit()};
+$('#pills').onclick=e=>{const b=e.target.closest('.pill');if(b)go(sg[b.dataset.i].prompt)};
+$('#st').onclick=e=>{const b=e.target.closest('[data-prompt]');if(b&&(!b.dataset.confirm||confirm(b.dataset.confirm)))send(b.dataset.prompt)};
+$('#out').onclick=async()=>{try{await api('/api/logout',{})}catch(_){}ready=false;prev=null;log.innerHTML='';showGate()};
+$('#gf').onsubmit=async e=>{
+  e.preventDefault();$('#ge').textContent='';
+  try{await api('/api/login',{guild_id:$('#g').value.trim(),password:$('#pw').value});$('#pw').value='';ready=false;prev=null;log.innerHTML='';refresh()}
+  catch(x){$('#ge').textContent=x.message}
+};
+
+refresh();
+setInterval(()=>{if(!document.hidden&&!$('#gate').classList.contains('show'))refresh()},4000);
+</script>
+</body>
+</html>
